@@ -2,52 +2,59 @@ import db from "../config/database.js";
 import axios from "axios";
 
 export async function renderHome(req, res) {
-    const query = "SELECT * FROM notes WHERE user_id = $1 ORDER BY id ASC";
-    const result = await db.query(query, [req.session.userId]);
-    // console.log(result.rows);
-    let errors = [];
-
-    for (let i = 0; i < result.rows.length; i++) {
-            // console.log(result.rows[i].book_isbn);
-            let isbn = result.rows[i].book_isbn.trim();
-            // Construct the URL
-            const url = "https://openlibrary.org/api/books?bibkeys=ISBN:" + encodeURIComponent(isbn) + "&format=json&jscmd=data";
+    try {
+        const query = "SELECT * FROM notes WHERE user_id = $1 ORDER BY id ASC";
+        const result = await db.query(query, [req.session.userId]);
+        
+        // Concurrent API calls instead of sequential(earlier i use single api calls but that resulted in 
+        // drastically slow home page load as each book api call was taking about 2 3 sec to load)
+        const apiCalls = result.rows.map(async (book) => {
+            const isbn = book.book_isbn.trim();
+            const url = `https://openlibrary.org/api/books?bibkeys=ISBN:${encodeURIComponent(isbn)}&format=json&jscmd=data`;
 
             try {
                 const response = await axios.get(url);
                 const data = response.data[`ISBN:${isbn}`];
-                // console.log(data);
+                
                 if (data) {
-                    var tags = data.subjects && data.subjects.length > 0 ? data.subjects[0].name : "No subjects available";
-
-                    for(var k = 1; k < Math.min(data.subjects?.length || 0, 3); k++) {
+                    // Process subjects/tags
+                    let tags = data.subjects && data.subjects.length > 0 ? data.subjects[0].name : "No subjects available";
+                    for(let k = 1; k < Math.min(data.subjects?.length || 0, 3); k++) {
                         tags += ", " + data.subjects[k].name;
                     }
-
-                    result.rows[i].tags = tags;
-                    result.rows[i].cover = data.cover ? data.cover.large : "./images.png";
-                    result.rows[i].pages = data.number_of_pages || "not available";
-                    result.rows[i].publish_date = data.publish_date || "not available";
-                    result.rows[i].publishers = (data.publishers && data.publishers.length > 0) ? data.publishers[0].name : "not available";
-                    result.rows[i].linkurl = data.url || "not available";
-                } else {
-                    errors.push({ isbn, error: "Book not found" });
+                    // console.log(data.cover)
+                    return {
+                        ...book,
+                        tags: tags,
+                        cover: data.cover ? data.cover.large : `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`,
+                        pages: data.number_of_pages || "not available",
+                        publish_date: data.publish_date || "not available",
+                        publishers: (data.publishers && data.publishers.length > 0) ? data.publishers[0].name : "not available",
+                        linkurl: data.url || "not available"
+                    };
                 }
-
+                
+                // Return original book if no API data
+                return book;
+                
             } catch (error) {
-                // console.error("Error fetching book data:", error);
-                errors.push({ isbn, error: "Failed to fetch book data" });
+                console.error(`API error for ${book.book_title}:`, error.message);
+                return book;
             }
-        }
+        });
 
-    if (errors.length > 0) {
-        return res.status(500).json({ errors });
+        // Execute all API calls simultaneously
+        const booksWithData = await Promise.all(apiCalls);
+        
+        res.render("home.ejs", { books: booksWithData });
+        
+    } catch (error) {
+        console.error("Error loading home:", error);
+        res.status(500).send("Internal Server Error");
     }
-
-    res.render("home.ejs", {
-        books: result.rows
-    });
 }
+
+
 
 export function renderAddBook(req, res) {
     res.render("add.ejs");

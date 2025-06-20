@@ -41,30 +41,18 @@ export async function renderProfile(req, res) {
         const avgRatingResult = await db.query(avgRatingQuery, [userId]);
         const avgRating = avgRatingResult.rows[0].avg_rating ? parseFloat(avgRatingResult.rows[0].avg_rating).toFixed(1) : 0;
         
-        // Get recent activity (last 5 books added)
-        const recentBooksQuery = "SELECT book_title, book_notes_date FROM notes WHERE user_id = $1 ORDER BY id DESC LIMIT 5";
-        const recentBooksResult = await db.query(recentBooksQuery, [userId]);
-        const recentBooks = recentBooksResult.rows;
-
-        // NEW: AI-powered genre analysis and recommendations
+        // AI-powered genre analysis and recommendations
         let favoriteGenres = 'Reading preferences being analyzed...';
         let recommendations = [];
         
         if (booksWithNotes.length > 0) {
             try {
-                // Step 1: Analyze user's favorite genres using Gemini
+                //ask gemini to Analyze user's favorite genres
                 favoriteGenres = await analyzeUserGenres(booksWithNotes);
                 
-                // Step 2: Generate book recommendations based on genres
+                // ask gemini to generate book recommendations based on genres
                 recommendations = await generateBookRecommendations(favoriteGenres, booksWithNotes);
-                
-                // Step 3: Add cover URLs to recommendations
-                recommendations = recommendations.map(book => ({
-                    ...book,
-                    coverUrl: book.isbn 
-                        ? `https://covers.openlibrary.org/b/isbn/${book.isbn}-L.jpg`
-                        : `https://via.placeholder.com/200x300/e9ecef/6c757d?text=${encodeURIComponent(book.title)}`
-                }));
+                // console.log(recommendations);
                 
             } catch (error) {
                 console.error('AI processing error:', error);
@@ -78,9 +66,8 @@ export async function renderProfile(req, res) {
             totalNotes: parseInt(totalNotes),
             booksWithNotes: booksWithNotes,
             avgRating: avgRating,
-            recentBooks: recentBooks,
-            favoriteGenres: favoriteGenres,  // NEW
-            recommendations: recommendations  // NEW
+            favoriteGenres: favoriteGenres,  
+            recommendations: recommendations  
         });
         
     } catch (error) {

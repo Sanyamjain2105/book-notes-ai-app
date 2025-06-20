@@ -84,7 +84,7 @@ footer {
 /* General Styles for Night Mode */
 .night-light {
     background: #1a1a1a !important; /* Softer dark background */
-    color: #f4f4f4 !important; /* Light text for readability */
+    color: black !important;
 }
 
 /* Navbar in Night Mode */
@@ -151,7 +151,7 @@ footer {
 }
 
 /* Adjust Text in Night Mode */
-.night-light p, 
+.night-light p,h3, 
 .night-light .card-title, 
 .night-light .card-text, 
 .night-light .text-muted {
@@ -194,6 +194,6 @@ footer {
 .night-light .text-muted strong{
     color: #f1c27d;
 }
-.night-light .text-muted span {
+.night-light .text-muted strong {
     color:black;
 }
